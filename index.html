@@ -1,0 +1,810 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>NVIDIA-Inspired Game UI System</title>
+  <style>
+    /* NVIDIA Design Language: Minimal, Dark, Green Accent, Data-Dense */
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+      user-select: none;
+    }
+
+    body {
+      background: #0a0a0a;
+      font-family: 'Segoe UI', 'Inter', system-ui, -apple-system, sans-serif;
+      color: #e0e0e0;
+      overflow: hidden;
+      height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+    }
+
+    /* Simulated Game Viewport */
+    #viewport {
+      position: relative;
+      width: 100vw;
+      height: 100vh;
+      background: radial-gradient(ellipse at 40% 40%, #1a2a3a 0%, #050a10 100%);
+      overflow: hidden;
+    }
+
+    /* Subtle grid texture like NVIDIA app backgrounds */
+    #viewport::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      background-image:
+        linear-gradient(rgba(118, 185, 0, 0.03) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(118, 185, 0, 0.03) 1px, transparent 1px);
+      background-size: 40px 40px;
+      pointer-events: none;
+    }
+
+    /* ============ NVIDIA APP-STYLE SIDE OVERLAY (Alt+Z inspired) ============ */
+    .nvidia-overlay {
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 320px;
+      height: 100%;
+      background: rgba(12, 12, 14, 0.92);
+      backdrop-filter: blur(20px);
+      border-right: 1px solid rgba(118, 185, 0, 0.25);
+      display: flex;
+      flex-direction: column;
+      padding: 24px 18px;
+      gap: 20px;
+      transform: translateX(-100%);
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+      z-index: 100;
+    }
+
+    .nvidia-overlay.open {
+      transform: translateX(0);
+    }
+
+    .overlay-header {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding-bottom: 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    }
+
+    .nvidia-logo {
+      width: 32px;
+      height: 32px;
+      background: #76b900;
+      border-radius: 6px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-weight: 900;
+      font-size: 16px;
+      color: #000;
+    }
+
+    .overlay-header h2 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.5px;
+      color: #fff;
+    }
+
+    .overlay-header span {
+      font-size: 11px;
+      color: #666;
+      display: block;
+      margin-top: 2px;
+    }
+
+    .overlay-section {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .section-label {
+      font-size: 10px;
+      font-weight: 800;
+      text-transform: uppercase;
+      letter-spacing: 1.5px;
+      color: #76b900;
+    }
+
+    /* Widget cards like NVIDIA App feature tiles */
+    .widget-card {
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 10px;
+      padding: 14px 16px;
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+    }
+
+    .widget-card:hover {
+      background: rgba(118, 185, 0, 0.08);
+      border-color: rgba(118, 185, 0, 0.3);
+    }
+
+    .widget-card.active {
+      background: rgba(118, 185, 0, 0.15);
+      border-color: #76b900;
+    }
+
+    .widget-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      background: rgba(118, 185, 0, 0.15);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+    }
+
+    .widget-info h4 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #eee;
+    }
+
+    .widget-info p {
+      font-size: 11px;
+      color: #777;
+      margin-top: 2px;
+    }
+
+    /* ============ IN-GAME PERFORMANCE OVERLAY (NVIDIA Stats Style) ============ */
+    .perf-overlay {
+      position: absolute;
+      top: 20px;
+      right: 20px;
+      background: rgba(8, 8, 10, 0.88);
+      backdrop-filter: blur(16px);
+      border: 1px solid rgba(118, 185, 0, 0.2);
+      border-radius: 10px;
+      padding: 16px 20px;
+      min-width: 220px;
+      z-index: 50;
+      transition: opacity 0.3s ease;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .perf-overlay.hidden {
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .perf-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 12px;
+      padding-bottom: 10px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+    }
+
+    .perf-header span {
+      font-size: 10px;
+      font-weight: 800;
+      letter-spacing: 1.2px;
+      text-transform: uppercase;
+      color: #76b900;
+    }
+
+    .perf-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 5px 0;
+      font-size: 13px;
+    }
+
+    .perf-row .label {
+      color: #888;
+      font-weight: 500;
+    }
+
+    .perf-row .value {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-weight: 700;
+      color: #fff;
+      font-size: 14px;
+    }
+
+    .value.green { color: #76b900; }
+    .value.cyan { color: #00d4ff; }
+    .value.amber { color: #ffb800; }
+    .value.red { color: #ff3b3b; }
+
+    /* Latency bar visualization (Reflex-inspired) */
+    .latency-bar-container {
+      margin-top: 8px;
+      height: 6px;
+      background: rgba(255, 255, 255, 0.08);
+      border-radius: 3px;
+      overflow: hidden;
+    }
+
+    .latency-bar-fill {
+      height: 100%;
+      border-radius: 3px;
+      transition: width 0.3s ease, background 0.3s ease;
+      background: linear-gradient(90deg, #76b900, #00d4ff);
+      width: 30%;
+    }
+
+    /* ============ CUSTOMIZATION PANEL (NVIDIA App Style) ============ */
+    .custom-panel {
+      position: absolute;
+      bottom: 24px;
+      right: 24px;
+      background: rgba(10, 10, 12, 0.94);
+      backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 14px;
+      padding: 20px;
+      width: 300px;
+      z-index: 80;
+      transform: translateY(calc(100% + 40px));
+      transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1);
+    }
+
+    .custom-panel.open {
+      transform: translateY(0);
+    }
+
+    .custom-panel h3 {
+      font-size: 13px;
+      font-weight: 700;
+      color: #76b900;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+      margin-bottom: 16px;
+    }
+
+    .custom-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+    }
+
+    .custom-row label {
+      font-size: 12px;
+      color: #aaa;
+    }
+
+    .custom-row select, .custom-row input[type="color"] {
+      background: #1a1a1e;
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      border-radius: 6px;
+      padding: 4px 8px;
+      color: #fff;
+      font-size: 11px;
+      cursor: pointer;
+      outline: none;
+    }
+
+    .custom-row input[type="range"] {
+      width: 100px;
+      accent-color: #76b900;
+    }
+
+    /* Toggle switch */
+    .toggle-switch {
+      width: 40px;
+      height: 22px;
+      background: #333;
+      border-radius: 11px;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.25s ease;
+    }
+
+    .toggle-switch.on {
+      background: #76b900;
+    }
+
+    .toggle-switch::after {
+      content: '';
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: #fff;
+      border-radius: 50%;
+      top: 3px;
+      left: 3px;
+      transition: transform 0.25s ease;
+    }
+
+    .toggle-switch.on::after {
+      transform: translateX(18px);
+    }
+
+    /* ============ HUD TOGGLE BUTTONS ============ */
+    .hud-toggles {
+      position: absolute;
+      bottom: 24px;
+      left: 24px;
+      display: flex;
+      gap: 10px;
+      z-index: 90;
+    }
+
+    .hud-btn {
+      background: rgba(15, 15, 18, 0.9);
+      border: 1px solid rgba(255, 255, 255, 0.12);
+      border-radius: 10px;
+      padding: 10px 16px;
+      color: #ccc;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      backdrop-filter: blur(10px);
+      transition: all 0.2s ease;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .hud-btn:hover {
+      border-color: #76b900;
+      color: #fff;
+    }
+
+    .hud-btn.active {
+      background: rgba(118, 185, 0, 0.15);
+      border-color: #76b900;
+      color: #76b900;
+    }
+
+    /* ============ STATS HUD (minimal, always-on) ============ */
+    .minimal-hud {
+      position: absolute;
+      top: 20px;
+      left: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 40;
+    }
+
+    .minimal-hud .stat-pill {
+      background: rgba(8, 8, 10, 0.75);
+      backdrop-filter: blur(10px);
+      border-left: 3px solid #76b900;
+      padding: 6px 14px;
+      border-radius: 4px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-size: 12px;
+    }
+
+    .stat-pill .stat-label {
+      color: #777;
+      font-weight: 500;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+    }
+
+    .stat-pill .stat-value {
+      font-family: 'JetBrains Mono', 'Courier New', monospace;
+      font-weight: 700;
+      color: #76b900;
+      font-size: 15px;
+    }
+
+    /* Simulated game scene elements for depth */
+    .game-scene {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      overflow: hidden;
+    }
+
+    .scene-horizon {
+      position: absolute;
+      bottom: 30%;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background: linear-gradient(90deg, transparent, rgba(118, 185, 0, 0.3), transparent);
+    }
+
+    .scene-ring {
+      position: absolute;
+      border-radius: 50%;
+      border: 1px solid rgba(118, 185, 0, 0.08);
+    }
+
+    /* Responsive */
+    @media (max-width: 768px) {
+      .nvidia-overlay { width: 280px; }
+      .perf-overlay { top: 10px; right: 10px; padding: 12px; min-width: 180px; }
+      .custom-panel { width: 260px; padding: 14px; }
+      .hud-toggles { flex-wrap: wrap; }
+    }
+  </style>
+</head>
+<body>
+  <div id="viewport">
+    <!-- Simulated game scene depth -->
+    <div class="game-scene">
+      <div class="scene-horizon"></div>
+      <div class="scene-ring" style="width: 600px; height: 600px; bottom: -300px; left: 50%; transform: translateX(-50%);"></div>
+      <div class="scene-ring" style="width: 900px; height: 900px; bottom: -450px; left: 50%; transform: translateX(-50%); border-color: rgba(118,185,0,0.04);"></div>
+    </div>
+
+    <!-- Minimal always-on HUD (NVIDIA App style, top-left) -->
+    <div class="minimal-hud">
+      <div class="stat-pill">
+        <span class="stat-label">FPS</span>
+        <span class="stat-value" id="hud-fps">144</span>
+      </div>
+      <div class="stat-pill" style="border-left-color: #00d4ff;">
+        <span class="stat-label">Latency</span>
+        <span class="stat-value" id="hud-latency" style="color: #00d4ff;">8.2 ms</span>
+      </div>
+    </div>
+
+    <!-- Main Performance Overlay (expandable, NVIDIA App redesign inspired) -->
+    <div class="perf-overlay" id="perfOverlay">
+      <div class="perf-header">
+        <span>Performance Overlay</span>
+        <span style="color: #555; font-size: 10px;">Alt+R</span>
+      </div>
+      <div class="perf-row">
+        <span class="label">Frame Rate</span>
+        <span class="value green" id="perfFps">144 FPS</span>
+      </div>
+      <div class="perf-row">
+        <span class="label">GPU Utilization</span>
+        <span class="value" id="perfGpu">67%</span>
+      </div>
+      <div class="perf-row">
+        <span class="label">GPU Temp</span>
+        <span class="value amber" id="perfTemp">62°C</span>
+      </div>
+      <div class="perf-row">
+        <span class="label">VRAM</span>
+        <span class="value" id="perfVram">4.2 / 8.0 GB</span>
+      </div>
+      <div class="perf-row">
+        <span class="label">System Latency</span>
+        <span class="value cyan" id="perfLatency">8.2 ms</span>
+      </div>
+      <div class="perf-row">
+        <span class="label">Render Present</span>
+        <span class="value" id="perfPresent">1.2 ms</span>
+      </div>
+      <div class="latency-bar-container">
+        <div class="latency-bar-fill" id="latencyBar"></div>
+      </div>
+      <div style="display: flex; justify-content: space-between; margin-top: 6px; font-size: 9px; color: #555;">
+        <span>0 ms</span>
+        <span>Click-to-Photon</span>
+        <span>30 ms</span>
+      </div>
+    </div>
+
+    <!-- NVIDIA App-Style Side Overlay (Alt+Z) -->
+    <div class="nvidia-overlay" id="nvidiaOverlay">
+      <div class="overlay-header">
+        <div class="nvidia-logo">N</div>
+        <div>
+          <h2>NVIDIA App</h2>
+          <span>Overlay v10.0.3</span>
+        </div>
+      </div>
+
+      <div class="overlay-section">
+        <span class="section-label">Capture & Record</span>
+        <div class="widget-card active" onclick="toggleWidget(this)">
+          <div class="widget-icon">📹</div>
+          <div class="widget-info">
+            <h4>Instant Replay</h4>
+            <p>ShadowPlay · 4K 120FPS AV1</p>
+          </div>
+        </div>
+        <div class="widget-card" onclick="toggleWidget(this)">
+          <div class="widget-icon">📸</div>
+          <div class="widget-info">
+            <h4>Photo Mode</h4>
+            <p>Capture screenshots</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay-section">
+        <span class="section-label">Enhance</span>
+        <div class="widget-card" onclick="toggleWidget(this)">
+          <div class="widget-icon">🎨</div>
+          <div class="widget-info">
+            <h4>RTX Dynamic Vibrance</h4>
+            <p>AI-powered color boost</p>
+          </div>
+        </div>
+        <div class="widget-card" onclick="toggleWidget(this)">
+          <div class="widget-icon">🌅</div>
+          <div class="widget-info">
+            <h4>RTX HDR</h4>
+            <p>HDR for SDR games</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="overlay-section">
+        <span class="section-label">Performance</span>
+        <div class="widget-card" onclick="toggleWidget(this)">
+          <div class="widget-icon">⚡</div>
+          <div class="widget-info">
+            <h4>NVIDIA Reflex</h4>
+            <p>Low Latency Mode · ON</p>
+          </div>
+        </div>
+        <div class="widget-card" onclick="toggleWidget(this)">
+          <div class="widget-icon">📊</div>
+          <div class="widget-info">
+            <h4>Stats Overlay</h4>
+            <p>Customizable HUD</p>
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-top: auto; font-size: 10px; color: #444; padding-top: 16px; border-top: 1px solid rgba(255,255,255,0.05);">
+        Press <strong style="color: #76b900;">Alt+Z</strong> to toggle this panel
+      </div>
+    </div>
+
+    <!-- Customization Panel (bottom-right, NVIDIA App settings inspired) -->
+    <div class="custom-panel" id="customPanel">
+      <h3>HUD Customization</h3>
+
+      <div class="custom-row">
+        <label>Stats Overlay</label>
+        <div class="toggle-switch on" onclick="togglePerfOverlay(this)"></div>
+      </div>
+
+      <div class="custom-row">
+        <label>Font Size</label>
+        <select id="fontSizeSelect" onchange="changeFontSize(this.value)">
+          <option value="12">Small</option>
+          <option value="14" selected>Medium</option>
+          <option value="16">Large</option>
+        </select>
+      </div>
+
+      <div class="custom-row">
+        <label>Accent Color</label>
+        <input type="color" value="#76b900" id="accentPicker" onchange="changeAccent(this.value)">
+      </div>
+
+      <div class="custom-row">
+        <label>Position</label>
+        <select id="posSelect" onchange="changePosition(this.value)">
+          <option value="top-right" selected>Top Right</option>
+          <option value="top-left">Top Left</option>
+          <option value="bottom-right">Bottom Right</option>
+          <option value="bottom-left">Bottom Left</option>
+        </select>
+      </div>
+
+      <div class="custom-row" style="border: none; margin-top: 8px;">
+        <label style="font-size: 10px; color: #555;">NVIDIA App pattern: user-controlled stat layout & appearance</label>
+      </div>
+    </div>
+
+    <!-- HUD Toggle Buttons -->
+    <div class="hud-toggles">
+      <button class="hud-btn active" id="btnPerf" onclick="togglePerfOverlayBtn()">
+        <span>📊</span> Performance
+      </button>
+      <button class="hud-btn" id="btnNvidia" onclick="toggleNvidiaOverlay()">
+        <span>🎮</span> NVIDIA Overlay
+      </button>
+      <button class="hud-btn" onclick="toggleCustomPanel()">
+        <span>⚙️</span> Customize
+      </button>
+    </div>
+  </div>
+
+  <script>
+    // ============ SIMULATED LIVE METRICS (Reflex-inspired) ============
+    const state = {
+      fps: 144,
+      latency: 8.2,
+      gpu: 67,
+      temp: 62,
+      vram: 4.2,
+      present: 1.2,
+      accent: '#76b900',
+      perfVisible: true,
+      fontSize: 14
+    };
+
+    // Element references
+    const perfOverlay = document.getElementById('perfOverlay');
+    const nvidiaOverlay = document.getElementById('nvidiaOverlay');
+    const customPanel = document.getElementById('customPanel');
+    const btnPerf = document.getElementById('btnPerf');
+    const btnNvidia = document.getElementById('btnNvidia');
+    const perfFps = document.getElementById('perfFps');
+    const perfLatency = document.getElementById('perfLatency');
+    const perfGpu = document.getElementById('perfGpu');
+    const perfTemp = document.getElementById('perfTemp');
+    const perfVram = document.getElementById('perfVram');
+    const perfPresent = document.getElementById('perfPresent');
+    const latencyBar = document.getElementById('latencyBar');
+    const hudFps = document.getElementById('hud-fps');
+    const hudLatency = document.getElementById('hud-latency');
+
+    // ============ LIVE UPDATE LOOP (simulating real-time stats) ============
+    function updateMetrics() {
+      // Simulate fluctuating metrics like a real game
+      state.fps = Math.round(140 + Math.random() * 20);
+      state.latency = parseFloat((7.5 + Math.random() * 3).toFixed(1));
+      state.gpu = Math.round(60 + Math.random() * 20);
+      state.temp = Math.round(58 + Math.random() * 10);
+      state.vram = parseFloat((3.8 + Math.random() * 1.5).toFixed(1));
+      state.present = parseFloat((0.9 + Math.random() * 0.8).toFixed(1));
+
+      // Update overlay values
+      perfFps.textContent = state.fps + ' FPS';
+      perfLatency.textContent = state.latency + ' ms';
+      perfGpu.textContent = state.gpu + '%';
+      perfTemp.textContent = state.temp + '°C';
+      perfVram.textContent = state.vram.toFixed(1) + ' / 8.0 GB';
+      perfPresent.textContent = state.present + ' ms';
+
+      // Update minimal HUD
+      hudFps.textContent = state.fps;
+      hudLatency.textContent = state.latency + ' ms';
+
+      // Update latency bar (0-30ms range)
+      const pct = Math.min(100, (state.latency / 30) * 100);
+      latencyBar.style.width = pct + '%';
+
+      // Color coding for latency
+      if (state.latency < 10) {
+        latencyBar.style.background = 'linear-gradient(90deg, #76b900, #00d4ff)';
+      } else if (state.latency < 20) {
+        latencyBar.style.background = 'linear-gradient(90deg, #ffb800, #ff8c00)';
+      } else {
+        latencyBar.style.background = 'linear-gradient(90deg, #ff3b3b, #ff6b00)';
+      }
+
+      // Temperature color
+      if (state.temp > 75) {
+        perfTemp.style.color = '#ff3b3b';
+      } else if (state.temp > 65) {
+        perfTemp.style.color = '#ffb800';
+      } else {
+        perfTemp.style.color = '#76b900';
+      }
+    }
+
+    setInterval(updateMetrics, 800);
+    updateMetrics();
+
+    // ============ UI INTERACTIONS ============
+    function toggleWidget(el) {
+      el.classList.toggle('active');
+    }
+
+    function togglePerfOverlay(sw) {
+      state.perfVisible = !state.perfVisible;
+      sw.classList.toggle('on', state.perfVisible);
+      perfOverlay.classList.toggle('hidden', !state.perfVisible);
+      btnPerf.classList.toggle('active', state.perfVisible);
+    }
+
+    function togglePerfOverlayBtn() {
+      state.perfVisible = !state.perfVisible;
+      perfOverlay.classList.toggle('hidden', !state.perfVisible);
+      btnPerf.classList.toggle('active', state.perfVisible);
+      // Sync toggle switch in custom panel
+      const sw = customPanel.querySelector('.toggle-switch');
+      if (sw) sw.classList.toggle('on', state.perfVisible);
+    }
+
+    function toggleNvidiaOverlay() {
+      nvidiaOverlay.classList.toggle('open');
+      btnNvidia.classList.toggle('active');
+    }
+
+    function toggleCustomPanel() {
+      customPanel.classList.toggle('open');
+    }
+
+    function changeFontSize(val) {
+      state.fontSize = parseInt(val);
+      const rows = document.querySelectorAll('.perf-row');
+      rows.forEach(r => {
+        r.querySelector('.label').style.fontSize = (state.fontSize - 2) + 'px';
+        r.querySelector('.value').style.fontSize = state.fontSize + 'px';
+      });
+    }
+
+    function changeAccent(color) {
+      state.accent = color;
+      // Update accent elements
+      document.querySelectorAll('.section-label').forEach(el => el.style.color = color);
+      document.querySelectorAll('.widget-icon').forEach(el => {
+        el.style.background = color + '26';
+      });
+      document.querySelectorAll('.widget-card.active').forEach(el => {
+        el.style.borderColor = color;
+        el.style.background = color + '26';
+      });
+      document.documentElement.style.setProperty('--accent', color);
+      // Update NVIDIA logo
+      document.querySelector('.nvidia-logo').style.background = color;
+      // Update stat pills
+      document.querySelectorAll('.stat-pill').forEach(el => {
+        el.style.borderLeftColor = color;
+      });
+    }
+
+    function changePosition(val) {
+      const overlay = perfOverlay;
+      // Reset positions
+      overlay.style.top = '20px';
+      overlay.style.right = '20px';
+      overlay.style.bottom = 'auto';
+      overlay.style.left = 'auto';
+
+      switch(val) {
+        case 'top-left':
+          overlay.style.top = '20px';
+          overlay.style.left = '20px';
+          overlay.style.right = 'auto';
+          break;
+        case 'bottom-right':
+          overlay.style.bottom = '20px';
+          overlay.style.right = '20px';
+          overlay.style.top = 'auto';
+          break;
+        case 'bottom-left':
+          overlay.style.bottom = '20px';
+          overlay.style.left = '20px';
+          overlay.style.top = 'auto';
+          overlay.style.right = 'auto';
+          break;
+        // top-right is default
+      }
+    }
+
+    // Keyboard shortcut: Alt+Z toggles NVIDIA overlay (authentic)
+    document.addEventListener('keydown', (e) => {
+      if (e.altKey && e.code === 'KeyZ') {
+        e.preventDefault();
+        toggleNvidiaOverlay();
+      }
+      if (e.altKey && e.code === 'KeyR') {
+        e.preventDefault();
+        togglePerfOverlayBtn();
+      }
+    });
+
+    // Init: open NVIDIA overlay after a moment to show it off
+    setTimeout(() => {
+      nvidiaOverlay.classList.add('open');
+      btnNvidia.classList.add('active');
+    }, 600);
+  </script>
+</body>
+</html>
